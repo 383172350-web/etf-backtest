@@ -1664,9 +1664,9 @@ def run_rsrs_backtest(data_dict, signals, stock_tickers, dates, initial_capital,
                 cur_close = s['close']
                 if buy_price > 0:
                     pnl = (cur_close - buy_price) / buy_price
-                    if pnl < stop_loss_limit:
+                    if pnl < -stop_loss_limit:
                         should_sell = True
-                        sell_reason = "相对买入价跌幅{:.1f}%".format(pnl * 100)
+                        sell_reason = "相对买入价跌幅{:.1f}%".format(abs(pnl) * 100)
                 if not should_sell:
                     if not _check_buy(s):
                         should_sell = True

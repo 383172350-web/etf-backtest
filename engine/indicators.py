@@ -271,14 +271,15 @@ def _calc_above_ma(df, period):
 #  大跌惩罚
 # ============================================================
 
-def _calc_big_drop_penalty(df, threshold=-0.03, penalty_days=3):
+def _calc_big_drop_penalty(df, threshold=0.03, penalty_days=3):
     """
-    big_drop_penalty: 近3日任一日跌幅 > threshold
+    big_drop_penalty: 近penalty_days日任一日跌幅 > threshold
+    threshold 为正数，表示跌幅百分比（如 0.03 表示 3%）
     """
     if 'daily_return' not in df.columns:
         df['daily_return'] = df['close'].pct_change()
     df['big_drop_penalty'] = (
-        (df['daily_return'] < threshold)
+        (df['daily_return'] < -abs(threshold))
         .rolling(window=penalty_days, min_periods=1)
         .max()
         .fillna(0)
@@ -502,7 +503,7 @@ def _apply_conditional_indicators(df, required, config):
     if 'big_drop_penalty' in required:
         drop_cfg = config.get('sort', {})
         _calc_big_drop_penalty(df,
-                               threshold=drop_cfg.get('drop_threshold', -0.03),
+                               threshold=drop_cfg.get('drop_threshold', 0.03),
                                penalty_days=drop_cfg.get('penalty_days', 3))
 
     return df
@@ -529,7 +530,7 @@ def calc_all_indicators(data_dict, config):
                 'ema_long': 26,
                 'atr_period': 26,
                 'drop_penalty': True,
-                'drop_threshold': -0.03,
+                'drop_threshold': 0.03,
                 'penalty_days': 3,
             },
             'buy': {
@@ -579,7 +580,7 @@ def calc_all_indicators(data_dict, config):
         if sort_cfg.get('drop_penalty', False) and 'sort_value' in df.columns:
             if 'big_drop_penalty' not in df.columns:
                 _calc_big_drop_penalty(df,
-                                       threshold=sort_cfg.get('drop_threshold', -0.03),
+                                       threshold=sort_cfg.get('drop_threshold', 0.03),
                                        penalty_days=sort_cfg.get('penalty_days', 3))
             df.loc[df['big_drop_penalty'], 'sort_value'] = -300
 

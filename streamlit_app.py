@@ -116,7 +116,7 @@ PRESET_STRATEGIES = {
                 {"indicator": "wdm_momentum", "op": "<", "value": 0, "enabled": True, "name": "wdm_momentum<0"},
             ],
             "stop_loss": 0.0,
-            "sell_if_buy_fails": True,
+            "sell_if_buy_fails": False,
         },
         "position": {
             "mode": "single",
@@ -226,33 +226,28 @@ PRESET_STRATEGIES = {
                         {"indicator": "momentum_score", "op": ">", "value": 0},
                         {"indicator": "momentum_score", "op": "<", "value": 7},
                         {"indicator": "volume_ratio", "op": "<=", "value": 2},
-                    ],
-                },
-                {
-                    "logic": "AND",
-                    "rules": [
                         {"indicator": "rsrs_pass", "op": "is_true", "value": 0},
                         {"indicator": "rsrs_strength", "op": ">", "value": 0.15},
-                        {"indicator": "momentum_score", "op": ">", "value": 0},
-                        {"indicator": "momentum_score", "op": "<", "value": 7},
                     ],
                 },
                 {
                     "logic": "AND",
                     "rules": [
+                        {"indicator": "momentum_score", "op": ">", "value": 0},
+                        {"indicator": "momentum_score", "op": "<", "value": 7},
+                        {"indicator": "volume_ratio", "op": "<=", "value": 2},
                         {"indicator": "rsrs_pass", "op": "is_true", "value": 0},
                         {"indicator": "rsrs_strength", "op": ">", "value": 0.03},
                         {"indicator": "above_ma5", "op": "is_true", "value": 0},
-                        {"indicator": "momentum_score", "op": ">", "value": 0},
-                        {"indicator": "momentum_score", "op": "<", "value": 7},
                     ],
                 },
                 {
                     "logic": "AND",
                     "rules": [
-                        {"indicator": "above_ma10", "op": "is_true", "value": 0},
                         {"indicator": "momentum_score", "op": ">", "value": 0},
                         {"indicator": "momentum_score", "op": "<", "value": 7},
+                        {"indicator": "volume_ratio", "op": "<=", "value": 2},
+                        {"indicator": "above_ma10", "op": "is_true", "value": 0},
                     ],
                 },
             ],
@@ -281,13 +276,14 @@ PRESET_STRATEGIES = {
             "direction": "desc",
             "window": 20,
             "drop_penalty": True,
-            "drop_threshold": 0.05,
+            "drop_threshold": 0.03,
+            "drop_penalty_score": 8,
         },
         "buy": {
             "mode": "switch",
             "conditions": [
                 {"indicator": "return_20", "op": ">", "value": 0.05, "enabled": True, "name": "20日涨幅>5%"},
-                {"indicator": "sort_value", "op": ">", "value": 0, "enabled": True, "name": "sort_value>0"},
+                {"indicator": "raw_sort_value", "op": ">", "value": 0, "enabled": True, "name": "raw_sort_value>0"},
             ],
         },
         "sell": {
@@ -297,7 +293,7 @@ PRESET_STRATEGIES = {
                 {"indicator": "rank", "op": ">", "value": 1, "enabled": True, "name": "rank>1"},
             ],
             "stop_loss": 0.0,
-            "sell_if_buy_fails": True,
+            "sell_if_buy_fails": False,
         },
         "position": {
             "mode": "single",
@@ -393,7 +389,7 @@ FREE_INDICATOR_OPTIONS = [
     "rsrs_strength", "rsrs_pass",
     "above_ma5", "above_ma10", "above_ma20",
     "boll_upper", "boll_mid", "boll_lower",
-    "sort_value", "rank",
+    "sort_value", "raw_sort_value", "rank",
 ]
 
 FREE_OPERATOR_OPTIONS = [">", ">=", "<", "<=", "==", "!=", "between", "is_true", "is_false"]
@@ -472,7 +468,7 @@ def init_session_state_defaults():
         "sort_wdm_shift": 12,
         "sort_wdm_smooth": 3,
         "drop_penalty": False,
-        "drop_threshold": 5.0,
+        "drop_threshold": 3.0,
         "buy_mode": "逐条开关",
         "sell_mode": "逐条开关",
         "sell_stop_loss": 3.0,
@@ -525,7 +521,7 @@ def apply_preset(name, config=None):
     st.session_state["sort_wdm_shift"] = sort_cfg.get("shift", 12)
     st.session_state["sort_wdm_smooth"] = sort_cfg.get("smooth", 3)
     st.session_state["drop_penalty"] = sort_cfg.get("drop_penalty", False)
-    st.session_state["drop_threshold"] = sort_cfg.get("drop_threshold", 0.05) * 100
+    st.session_state["drop_threshold"] = sort_cfg.get("drop_threshold", 0.03) * 100
 
     # 买入
     buy_cfg = preset.get("buy", {})

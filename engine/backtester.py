@@ -127,7 +127,9 @@ def _eval_switch_conditions(row, conditions):
 def _eval_free_conditions(row, condition_groups):
     """
     free 模式：遍历 condition_groups，组内按 logic(AND/OR) 求值，组间 OR。
-    NaN条件(返回None)视为跳过。
+    NaN条件(返回None)：AND时视为不满足(与app.py一致，NaN表示数据缺失应拒绝)，
+    OR时视为False（数据缺失不能使条件成立）。
+    is_true/is_false 不返回None，已在_eval_single_condition中处理NaN。
     """
     if not condition_groups:
         return True
@@ -146,9 +148,9 @@ def _eval_free_conditions(row, condition_groups):
             value = rule['value']
             r = _eval_single_condition(row, indicator, op, value)
 
-            # None=跳过，AND时视为True，OR时视为False
+            # None=数据缺失，AND时视为False(数据缺失应拒绝)，OR时视为False
             if r is None:
-                r = True if logic == 'AND' else False
+                r = False
 
             if logic == 'AND':
                 group_result = group_result and r
@@ -273,8 +275,8 @@ def _apply_drop_penalty(signals, stock_tickers, sort_config):
     if not drop_penalty:
         return
 
-    threshold = sort_config.get('drop_threshold', 0.05)
-    penalty_value = -300  # 惩罚值，与 v7 一致
+    threshold = sort_config.get('drop_threshold', 0.03)
+    drop_penalty_score = sort_config.get('drop_penalty_score', 8)
 
     for ticker in stock_tickers:
         if ticker not in signals:
@@ -282,6 +284,11 @@ def _apply_drop_penalty(signals, stock_tickers, sort_config):
         df = signals[ticker]
         if 'close' not in df.columns:
             continue
+
+        # 保存原始排序值（不受penalty影响），供买入条件使用
+        if 'sort_value' in df.columns and 'raw_sort_value' not in df.columns:
+            df['raw_sort_value'] = df['sort_value']
+
         close = df['close']
         # 最近3日任一日跌幅 > 阈值
         has_big_drop = (
@@ -289,7 +296,10 @@ def _apply_drop_penalty(signals, stock_tickers, sort_config):
             (close.shift(1) / close.shift(2) < 1 - threshold) |
             (close.shift(2) / close.shift(3) < 1 - threshold)
         )
-        df.loc[has_big_drop, 'sort_value'] = penalty_value
+        # 减去penalty_score，而非设为-300
+        df.loc[has_big_drop, 'sort_value'] = (
+            df.loc[has_big_drop, 'sort_value'] - drop_penalty_score
+        )
 
 
 # ============================================================
@@ -300,8 +310,9 @@ def _calc_rank_map(signals, stock_tickers, date, sort_config):
     """
     计算某日的排名映射。
     返回 {ticker: rank}，rank 从 1 开始。
+    始终使用 sort_value 列（已含penalty），而非原始indicator列。
     """
-    indicator = sort_config.get('indicator', 'sort_value')
+    indicator = 'sort_value'
     direction = sort_config.get('direction', 'desc')
     descending = (direction == 'desc')
 
@@ -370,8 +381,7 @@ def run_backtest(data_dict, signals, config):
     stop_loss_pct = sell_config.get('stop_loss', 0)
     sell_if_buy_fails = sell_config.get('sell_if_buy_fails', False)
 
-    # ---- 应用大跌惩罚 ----
-    _apply_drop_penalty(signals, stock_tickers, sort_config)
+    # ---- 大跌惩罚已由 calc_all_indicators 处理，此处不再重复 ----
 
     # ---- 确定交易日期 ----
     all_tickers = list(stock_tickers)
@@ -497,8 +507,8 @@ def run_backtest(data_dict, signals, config):
 
             should_sell, reasons = eval_sell_conditions(row_dict, sell_config, rank)
 
-            # sell_if_buy_fails: 不满足买入条件则卖出
-            if sell_if_buy_fails and not should_sell:
+            # sell_if_buy_fails: 不满足买入条件则卖出（仅在轮动日检查）
+            if sell_if_buy_fails and not should_sell and date in rebalance_dates:
                 buy_ok = eval_buy_conditions(row_dict, buy_config)
                 # 如果 rank 限制不满足，也视为买入条件不满足
                 if new_rank_limit > 0 and rank > new_rank_limit:
@@ -510,17 +520,17 @@ def run_backtest(data_dict, signals, config):
             if should_sell:
                 sell_list.append((ticker, "; ".join(reasons)))
 
-        # single模式换仓：轮动日如果持仓标的排名不是第一且有更好的标的满足买入条件
-        if position_mode == 'single' and sell_if_buy_fails and date in rebalance_dates:
+        # single模式换仓：轮动日找到满足买入条件的最佳候选，若与当前持仓不同则换仓
+        # 注意：仅在当前持仓未被卖出时才执行换仓（与app.py的elif逻辑一致）
+        if position_mode == 'single' and date in rebalance_dates:
             sold_tickers = set(t for t, _ in sell_list)
             holding_tickers = [t for t in holdings if t != bond_ticker and t not in sold_tickers]
             if holding_tickers:
                 holding_ticker = holding_tickers[0]
-                holding_rank = rank_map.get(holding_ticker, 999)
-                # 检查是否有排名更靠前且满足买入条件的标的
+                # 找满足买入条件中排名最优的候选（包含当前持仓）
+                best_candidate = None
+                best_rank = 999
                 for t in stock_tickers:
-                    if t == holding_ticker:
-                        continue
                     t_df = signals.get(t)
                     if t_df is None or date not in t_df.index:
                         continue
@@ -532,9 +542,12 @@ def run_backtest(data_dict, signals, config):
                     buy_ok = eval_buy_conditions(row_dict, buy_config)
                     if new_rank_limit > 0 and t_rank > new_rank_limit:
                         buy_ok = False
-                    if buy_ok and t_rank < holding_rank:
-                        sell_list.append((holding_ticker, "轮动换仓"))
-                        break
+                    if buy_ok and t_rank < best_rank:
+                        best_rank = t_rank
+                        best_candidate = t
+                # 如果最优候选不是当前持仓，才换仓
+                if best_candidate is not None and best_candidate != holding_ticker:
+                    sell_list.append((holding_ticker, "轮动换仓"))
 
         # T+1 开盘价执行卖出
         for ticker, reason in sell_list:
@@ -733,91 +746,14 @@ def run_backtest(data_dict, signals, config):
 
         # 5.4 根据持仓模式执行
         if need_rebalance:
-            # ---- 全量再平衡 ----
-            # 先卖出所有持仓
-            for t in list(holdings.keys()):
-                t_df = signals.get(t, data_dict.get(t))
-                if t_df is not None and next_date in t_df.index:
-                    open_price = t_df.loc[next_date, 'open']
-                    if open_price > 0:
-                        cash += holdings[t]['shares'] * open_price
-                del holdings[t]
-
-            total_value = cash
-
-            if position_mode == 'equal_weight':
-                # 等权分配
+            if position_mode == 'incremental':
+                # ---- 增量式：不卖出已有持仓，只买入新标的 ----
                 for ticker in target_stocks:
-                    target_value = total_value * position_pct
-                    t_df = signals.get(ticker, data_dict.get(ticker))
-                    if t_df is None or next_date not in t_df.index:
-                        continue
-                    fee = target_value * fee_rate
-                    open_price = t_df.loc[next_date, 'open']
-                    if open_price <= 0:
-                        continue
-                    shares = target_value / open_price
-                    buy_value = shares * open_price
-                    cash -= (buy_value + fee)
-                    holdings[ticker] = {
-                        'shares': shares,
-                        'cost': open_price,
-                        'buy_date': next_date,
-                    }
-                    trade_log.append({
-                        'date': next_date,
-                        'ticker': ticker,
-                        'name': get_ticker_name(ticker),
-                        'action': 'BUY',
-                        'price': open_price,
-                        'shares': shares,
-                        'value': buy_value,
-                        'fee': fee,
-                        'pnl_pct': 0,
-                        'hold_days': 0,
-                        'reason': '建仓/再平衡',
-                    })
-
-            elif position_mode == 'single':
-                # 100% 单标的，只持最强的
-                if target_stocks:
-                    ticker = target_stocks[0]
-                    t_df = signals.get(ticker, data_dict.get(ticker))
-                    if t_df is not None and next_date in t_df.index:
-                        target_value = total_value
-                        fee = target_value * fee_rate
-                        open_price = t_df.loc[next_date, 'open']
-                        if open_price <= 0:
-                            pass
-                        else:
-                            shares = target_value / open_price
-                            buy_value = shares * open_price
-                            cash -= (buy_value + fee)
-                            holdings[ticker] = {
-                                'shares': shares,
-                                'cost': open_price,
-                                'buy_date': next_date,
-                            }
-                            trade_log.append({
-                                'date': next_date,
-                                'ticker': ticker,
-                                'name': get_ticker_name(ticker),
-                                'action': 'BUY',
-                                'price': open_price,
-                                'shares': shares,
-                                'value': buy_value,
-                                'fee': fee,
-                                'pnl_pct': 0,
-                                'hold_days': 0,
-                                'reason': '单标的建仓',
-                            })
-
-            elif position_mode == 'incremental':
-                # 增量式：按排名依次买入，每只 position_pct 比例
-                for ticker in target_stocks:
-                    if cash < total_value * position_pct * 0.5:
-                        break  # 剩余资金不足半仓，停止
-                    target_value = total_value * position_pct
+                    if ticker in holdings:
+                        continue  # 已持有，跳过
+                    if cash <= 0:
+                        break
+                    target_value = cash * position_pct
                     t_df = signals.get(ticker, data_dict.get(ticker))
                     if t_df is None or next_date not in t_df.index:
                         continue
@@ -853,6 +789,86 @@ def run_backtest(data_dict, signals, config):
                         'hold_days': 0,
                         'reason': '增量建仓',
                     })
+
+            else:
+                # ---- 全量再平衡（equal_weight / single） ----
+                # 先卖出所有持仓（与app.py一致：再平衡卖出不收手续费）
+                for t in list(holdings.keys()):
+                    t_df = signals.get(t, data_dict.get(t))
+                    if t_df is not None and next_date in t_df.index:
+                        open_price = t_df.loc[next_date, 'open']
+                        if open_price > 0:
+                            cash += holdings[t]['shares'] * open_price
+                    del holdings[t]
+
+                total_value = cash
+
+                if position_mode == 'equal_weight':
+                    # 等权分配
+                    for ticker in target_stocks:
+                        target_value = total_value * position_pct
+                        t_df = signals.get(ticker, data_dict.get(ticker))
+                        if t_df is None or next_date not in t_df.index:
+                            continue
+                        fee = target_value * fee_rate
+                        open_price = t_df.loc[next_date, 'open']
+                        if open_price <= 0:
+                            continue
+                        shares = target_value / open_price
+                        buy_value = shares * open_price
+                        cash -= (buy_value + fee)
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'cost': open_price,
+                            'buy_date': next_date,
+                        }
+                        trade_log.append({
+                            'date': next_date,
+                            'ticker': ticker,
+                            'name': get_ticker_name(ticker),
+                            'action': 'BUY',
+                            'price': open_price,
+                            'shares': shares,
+                            'value': buy_value,
+                            'fee': fee,
+                            'pnl_pct': 0,
+                            'hold_days': 0,
+                            'reason': '建仓/再平衡',
+                        })
+
+                elif position_mode == 'single':
+                    # 100% 单标的，只持最强的
+                    if target_stocks:
+                        ticker = target_stocks[0]
+                        t_df = signals.get(ticker, data_dict.get(ticker))
+                        if t_df is not None and next_date in t_df.index:
+                            target_value = total_value
+                            fee = target_value * fee_rate
+                            open_price = t_df.loc[next_date, 'open']
+                            if open_price <= 0:
+                                pass
+                            else:
+                                shares = target_value / open_price
+                                buy_value = shares * open_price
+                                cash -= (buy_value + fee)
+                                holdings[ticker] = {
+                                    'shares': shares,
+                                    'cost': open_price,
+                                    'buy_date': next_date,
+                            }
+                            trade_log.append({
+                                'date': next_date,
+                                'ticker': ticker,
+                                'name': get_ticker_name(ticker),
+                                'action': 'BUY',
+                                'price': open_price,
+                                'shares': shares,
+                                'value': buy_value,
+                                'fee': fee,
+                                'pnl_pct': 0,
+                                'hold_days': 0,
+                                'reason': '单标的建仓',
+                            })
 
             # 余款买债券替代
             if bond_ticker and cash > 1e-6:

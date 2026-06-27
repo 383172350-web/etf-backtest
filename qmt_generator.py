@@ -264,7 +264,7 @@ def _generate_calc_signals_code(config, required):
 
     # 大跌惩罚
     if sort_cfg.get('drop_penalty', False):
-        threshold = sort_cfg.get('drop_threshold', 0.05)
+        threshold = sort_cfg.get('drop_threshold', 0.03)
         lines.append(f"        # 大跌惩罚")
         lines.append(f"        df['big_drop_penalty'] = (")
         lines.append(f"            (df['daily_return'] < -{threshold})")
