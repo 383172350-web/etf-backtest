@@ -27,6 +27,53 @@ with st.sidebar:
 
 run_btn = st.sidebar.button("开始回测", type="primary")
 
+def get_config_summary(strategy_name, params):
+    config = {
+        "全品类DIFv轮动": {
+            "股票池": "13只（创业板50, 有色ETF, 能源化工, 豆粕ETF, 沪深300, 科创50, 医疗ETF, 军工ETF, 券商ETF, 半导体, 新能源车, 光伏产业, 恒生科技）",
+            "排序": "DIF指标 降序",
+            "买入": f"close > ma20 AND close > ma5 AND ma10 > ma20 AND ma5 > ma10",
+            "卖出": f"rank>{params['sell_rank_gt']} OR 日跌幅>{params['sell_daily_drop']}% OR 20日涨幅>{params['sell_return_20']}%",
+            "持仓": f"等权{params['max_holdings']}只, {params['position_pct']}%比例, {params['rebalance_days']}日轮动"
+        },
+        "五斗米动量轮动": {
+            "股票池": "5只（创业板50, 沪深300, 科创50, 医疗ETF, 半导体）",
+            "排序": "五斗米动量 降序",
+            "买入": "动量得分 > 阈值",
+            "卖出": "动量得分 < 阈值 OR 排名靠后",
+            "持仓": f"等权{params['max_holdings']}只, {params['position_pct']}%比例, {params['rebalance_days']}日轮动"
+        },
+        "定投+轮动组合": {
+            "股票池": "13只（创业板50, 有色ETF, 能源化工, 豆粕ETF, 沪深300, 科创50, 医疗ETF, 军工ETF, 券商ETF, 半导体, 新能源车, 光伏产业, 恒生科技）",
+            "排序": "DIF指标 降序",
+            "买入": "定投+轮动双模式",
+            "卖出": f"rank>{params['sell_rank_gt']} OR 日跌幅>{params['sell_daily_drop']}%",
+            "持仓": f"等权{params['max_holdings']}只, {params['position_pct']}%比例, {params['rebalance_days']}日轮动"
+        },
+        "RSRS动量轮动": {
+            "股票池": "5只（创业板50, 沪深300, 科创50, 医疗ETF, 半导体）",
+            "排序": "RSRS强度 降序",
+            "买入": "RSRS强度 > 阈值 AND 均线多头",
+            "卖出": "RSRS强度 < 阈值 OR 止损",
+            "持仓": f"等权{params['max_holdings']}只, {params['position_pct']}%比例, {params['rebalance_days']}日轮动"
+        },
+        "LOF轮动": {
+            "股票池": "LOF标的池",
+            "排序": "LOGBIAS指标 降序",
+            "买入": "LOGBIAS > 阈值",
+            "卖出": "LOGBIAS < 阈值 OR 排名靠后",
+            "持仓": f"等权{params['max_holdings']}只, {params['position_pct']}%比例, {params['rebalance_days']}日轮动"
+        },
+        "科技DIFv轮动": {
+            "股票池": "科技类ETF（半导体, 新能源车, 光伏产业, 科创50等）",
+            "排序": "DIF指标 降序",
+            "买入": f"close > ma20 AND close > ma5 AND ma10 > ma20",
+            "卖出": f"rank>{params['sell_rank_gt']} OR 日跌幅>{params['sell_daily_drop']}%",
+            "持仓": f"等权{params['max_holdings']}只, {params['position_pct']}%比例, {params['rebalance_days']}日轮动"
+        }
+    }
+    return config.get(strategy_name, {})
+
 if run_btn:
     st.info("正在初始化...")
     
@@ -82,6 +129,20 @@ if run_btn:
             st.error(f"回测失败: {result['error']}")
         else:
             st.success("回测完成!")
+            
+            config_summary = get_config_summary(strategy, params)
+            
+            with st.expander("📋 当前配置概要"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"- **股票池**: {config_summary.get('股票池', '')}")
+                    st.write(f"- **排序**: {config_summary.get('排序', '')}")
+                with col2:
+                    st.write(f"- **买入**: {config_summary.get('买入', '')}")
+                    st.write(f"- **卖出**: {config_summary.get('卖出', '')}")
+                st.write(f"- **持仓**: {config_summary.get('持仓', '')}")
+                st.write(f"- **开始日期**: {params['start_date']}")
+                st.write(f"- **初始资金**: {params['initial_capital']:,} 元")
             
             perf = result.get('performance', {})
             
