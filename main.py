@@ -15,7 +15,7 @@ st.title("ETF轮动策略回测系统")
 
 st.sidebar.header("策略配置")
 
-strategy_list = ["全品类DIFv轮动", "五斗米动量轮动", "定投+轮动组合", "RSRS动量轮动", "LOGBIAS轮动", "标准化动量轮动"]
+strategy_list = ["全品类DIFv轮动", "五斗米动量轮动", "定投+轮动组合", "RSRS动量轮动", "LOF轮动", "科技DIFv轮动"]
 strategy = st.sidebar.selectbox("选择策略", strategy_list)
 
 with st.sidebar:
@@ -38,7 +38,7 @@ if run_btn:
         from app import (
             run_difv_backtest_api, run_wdm_backtest_api, 
             run_combo_backtest_api, run_rsrs_backtest_api,
-            run_logbias_backtest_api, run_std_momentum_backtest_api
+            run_lof_backtest_api, run_tech_difv_backtest_api
         )
         
         st.info("正在构建参数...")
@@ -69,10 +69,10 @@ if run_btn:
             result = run_combo_backtest_api(params)
         elif strategy == "RSRS动量轮动":
             result = run_rsrs_backtest_api(params)
-        elif strategy == "LOGBIAS轮动":
-            result = run_logbias_backtest_api(params)
-        elif strategy == "标准化动量轮动":
-            result = run_std_momentum_backtest_api(params)
+        elif strategy == "LOF轮动":
+            result = run_lof_backtest_api(params)
+        elif strategy == "科技DIFv轮动":
+            result = run_tech_difv_backtest_api(params)
         
         if 'error' in result:
             st.error(f"回测失败: {result['error']}")
