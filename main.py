@@ -88,15 +88,15 @@ if run_btn:
             st.subheader("回测结果")
             col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
-                st.metric("总收益率", f"{perf.get('total_return', 0):.2%}")
+                st.metric("总收益率", f"{perf.get('total_return', 0):.2f}%")
             with col2:
-                st.metric("年化收益", f"{perf.get('annual_return', 0):.2%}")
+                st.metric("年化收益", f"{perf.get('annual_return', 0):.2f}%")
             with col3:
-                st.metric("最大回撤", f"{perf.get('max_drawdown', 0):.2%}")
+                st.metric("最大回撤", f"{perf.get('max_dd', 0):.2f}%")
             with col4:
-                st.metric("夏普比率", f"{perf.get('sharpe_ratio', 0):.2f}")
+                st.metric("夏普比率", f"{perf.get('sharpe', 0):.2f}")
             with col5:
-                st.metric("胜率", f"{perf.get('win_rate', 0):.2%}")
+                st.metric("胜率", f"{perf.get('win_rate', 0):.2f}%")
             
             nav_data = result.get('nav_curve', [])
             benchmark_data = result.get('benchmark', [])
