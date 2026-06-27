@@ -116,7 +116,7 @@ PRESET_STRATEGIES = {
                 {"indicator": "wdm_momentum", "op": "<", "value": 0, "enabled": True, "name": "wdm_momentum<0"},
             ],
             "stop_loss": 0.0,
-            "sell_if_buy_fails": False,
+            "sell_if_buy_fails": True,
         },
         "position": {
             "mode": "single",
@@ -226,28 +226,33 @@ PRESET_STRATEGIES = {
                         {"indicator": "momentum_score", "op": ">", "value": 0},
                         {"indicator": "momentum_score", "op": "<", "value": 7},
                         {"indicator": "volume_ratio", "op": "<=", "value": 2},
-                        {"indicator": "rsrs_pass", "op": "is_true", "value": 0},
-                        {"indicator": "rsrs_strength", "op": ">", "value": 0.15},
                     ],
                 },
                 {
                     "logic": "AND",
                     "rules": [
+                        {"indicator": "rsrs_pass", "op": "is_true", "value": 0},
+                        {"indicator": "rsrs_strength", "op": ">", "value": 0.15},
                         {"indicator": "momentum_score", "op": ">", "value": 0},
                         {"indicator": "momentum_score", "op": "<", "value": 7},
-                        {"indicator": "volume_ratio", "op": "<=", "value": 2},
+                    ],
+                },
+                {
+                    "logic": "AND",
+                    "rules": [
                         {"indicator": "rsrs_pass", "op": "is_true", "value": 0},
                         {"indicator": "rsrs_strength", "op": ">", "value": 0.03},
                         {"indicator": "above_ma5", "op": "is_true", "value": 0},
+                        {"indicator": "momentum_score", "op": ">", "value": 0},
+                        {"indicator": "momentum_score", "op": "<", "value": 7},
                     ],
                 },
                 {
                     "logic": "AND",
                     "rules": [
+                        {"indicator": "above_ma10", "op": "is_true", "value": 0},
                         {"indicator": "momentum_score", "op": ">", "value": 0},
                         {"indicator": "momentum_score", "op": "<", "value": 7},
-                        {"indicator": "volume_ratio", "op": "<=", "value": 2},
-                        {"indicator": "above_ma10", "op": "is_true", "value": 0},
                     ],
                 },
             ],
@@ -277,13 +282,12 @@ PRESET_STRATEGIES = {
             "window": 20,
             "drop_penalty": True,
             "drop_threshold": 0.05,
-            "drop_penalty_score": 8,
         },
         "buy": {
             "mode": "switch",
             "conditions": [
                 {"indicator": "return_20", "op": ">", "value": 0.05, "enabled": True, "name": "20日涨幅>5%"},
-                {"indicator": "raw_sort_value", "op": ">", "value": 0, "enabled": True, "name": "raw_sort_value>0"},
+                {"indicator": "sort_value", "op": ">", "value": 0, "enabled": True, "name": "sort_value>0"},
             ],
         },
         "sell": {
@@ -389,7 +393,7 @@ FREE_INDICATOR_OPTIONS = [
     "rsrs_strength", "rsrs_pass",
     "above_ma5", "above_ma10", "above_ma20",
     "boll_upper", "boll_mid", "boll_lower",
-    "sort_value", "raw_sort_value", "rank",
+    "sort_value", "rank",
 ]
 
 FREE_OPERATOR_OPTIONS = [">", ">=", "<", "<=", "==", "!=", "between", "is_true", "is_false"]

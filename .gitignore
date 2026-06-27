@@ -1,8 +1,8 @@
+# 忽略缓存和日志
 __pycache__/
 *.pyc
-*.pkl
-.DS_Store
-output/
-backtest_web/output/
-backtest_web/__pycache__/
-backtest_web/engine/__pycache__/
+*.pyo
+*.log
+
+# 数据文件（如果你不想把数据提交到GitHub，取消下面注释）
+# data/ETF/1d/*.pkl

@@ -324,7 +324,7 @@ def _collect_required_indicators(config):
                 _KNOWN_INDICATOR_PREFIXES = (
                     'ma', 'ema', 'atr', 'std', 'boll_', 'bias', 'above_ma',
                     'return_', 'daily_return', 'volume_ratio', 'difv', 'dif',
-                    'sort_value', 'raw_sort_value', 'momentum_score', 'rsrs_', 'wdm_momentum',
+                    'sort_value', 'momentum_score', 'rsrs_', 'wdm_momentum',
                     'big_drop_penalty', 'logbias',
                 )
                 if any(val.startswith(p) for p in _KNOWN_INDICATOR_PREFIXES):
@@ -575,20 +575,13 @@ def calc_all_indicators(data_dict, config):
         # 2. 按需计算买卖条件指标
         _apply_conditional_indicators(df, required, config)
 
-        # 3. 保存原始排序值（不受penalty影响），供买入条件使用
-        if 'sort_value' in df.columns:
-            df['raw_sort_value'] = df['sort_value']
-
-        # 4. 大跌惩罚: 修改 sort_value（减去penalty_score，而非设为-300）
+        # 3. 大跌惩罚: 修改 sort_value
         if sort_cfg.get('drop_penalty', False) and 'sort_value' in df.columns:
             if 'big_drop_penalty' not in df.columns:
                 _calc_big_drop_penalty(df,
                                        threshold=sort_cfg.get('drop_threshold', -0.03),
                                        penalty_days=sort_cfg.get('penalty_days', 3))
-            drop_penalty_score = sort_cfg.get('drop_penalty_score', 8)
-            df.loc[df['big_drop_penalty'], 'sort_value'] = (
-                df.loc[df['big_drop_penalty'], 'sort_value'] - drop_penalty_score
-            )
+            df.loc[df['big_drop_penalty'], 'sort_value'] = -300
 
         signals[thscode] = df
 

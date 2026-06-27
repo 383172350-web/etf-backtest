@@ -17,7 +17,10 @@ app = Flask(__name__)
 # ========================================
 #  数据目录
 # ========================================
-PKL_DIR = r"D:\qmt_data\ETF\1d"
+PKL_DIR = os.environ.get(
+    "PKL_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ETF", "1d")
+)
 
 # ========================================
 #  ETF配置
