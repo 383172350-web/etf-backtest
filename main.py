@@ -99,11 +99,27 @@ if run_btn:
                 st.metric("胜率", f"{perf.get('win_rate', 0):.2%}")
             
             nav_data = result.get('nav_curve', [])
+            benchmark_data = result.get('benchmark', [])
             if nav_data:
                 st.subheader("净值曲线")
                 nav_df = pd.DataFrame(nav_data)
                 nav_df['date'] = pd.to_datetime(nav_df['date'])
-                st.line_chart(nav_df.set_index('date')[['nav', 'benchmark']])
+                nav_df = nav_df.rename(columns={'nav': '策略净值'})
+                
+                if benchmark_data:
+                    bm_df = pd.DataFrame(benchmark_data)
+                    bm_df['date'] = pd.to_datetime(bm_df['date'])
+                    bm_df = bm_df.rename(columns={'nav': '基准净值'})
+                    nav_df = pd.merge(nav_df, bm_df, on='date', how='outer')
+                
+                st.line_chart(nav_df.set_index('date'))
+            
+            drawdown = result.get('drawdown', [])
+            if drawdown:
+                st.subheader("回撤曲线")
+                dd_df = pd.DataFrame(drawdown)
+                dd_df['date'] = pd.to_datetime(dd_df['date'])
+                st.line_chart(dd_df.set_index('date')[['dd']])
             
             yearly = result.get('yearly_returns', [])
             if yearly:
@@ -120,7 +136,7 @@ if run_btn:
                 st.subheader("当前排名")
                 st.dataframe(pd.DataFrame(rankings))
             
-            holdings = result.get('holdings', [])
+            holdings = result.get('current_holdings', [])
             if holdings:
                 st.subheader("当前持仓")
                 st.dataframe(pd.DataFrame(holdings))
