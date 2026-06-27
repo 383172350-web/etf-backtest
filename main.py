@@ -36,7 +36,7 @@ if run_btn:
         st.info("正在导入回测模块...")
         
         from app import (
-            run_difv_backtest_api, run_wdm_backtest_api, 
+            app, run_difv_backtest_api, run_wdm_backtest_api, 
             run_combo_backtest_api, run_rsrs_backtest_api,
             run_lof_backtest_api, run_tech_difv_backtest_api
         )
@@ -61,18 +61,22 @@ if run_btn:
         
         st.info(f"正在运行策略: {strategy}")
         
-        if strategy == "全品类DIFv轮动":
-            result = run_difv_backtest_api(params)
-        elif strategy == "五斗米动量轮动":
-            result = run_wdm_backtest_api(params)
-        elif strategy == "定投+轮动组合":
-            result = run_combo_backtest_api(params)
-        elif strategy == "RSRS动量轮动":
-            result = run_rsrs_backtest_api(params)
-        elif strategy == "LOF轮动":
-            result = run_lof_backtest_api(params)
-        elif strategy == "科技DIFv轮动":
-            result = run_tech_difv_backtest_api(params)
+        with app.app_context():
+            if strategy == "全品类DIFv轮动":
+                result = run_difv_backtest_api(params)
+            elif strategy == "五斗米动量轮动":
+                result = run_wdm_backtest_api(params)
+            elif strategy == "定投+轮动组合":
+                result = run_combo_backtest_api(params)
+            elif strategy == "RSRS动量轮动":
+                result = run_rsrs_backtest_api(params)
+            elif strategy == "LOF轮动":
+                result = run_lof_backtest_api(params)
+            elif strategy == "科技DIFv轮动":
+                result = run_tech_difv_backtest_api(params)
+        
+        if hasattr(result, 'get_json'):
+            result = result.get_json()
         
         if 'error' in result:
             st.error(f"回测失败: {result['error']}")
