@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pkl
+.DS_Store
+output/
+backtest_web/output/
+backtest_web/__pycache__/
+backtest_web/engine/__pycache__/
